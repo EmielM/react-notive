@@ -4,12 +4,21 @@ class Node {
     this.props = {};
     this.children = [];
     for (const arg of args) {
-      if (arg instanceof Node || typeof arg === "string") {
+      if (arg instanceof Node) {
+        //} || typeof arg === "string") {
         this.children.push(arg);
       } else if (typeof arg === "object" && arg) {
         this.props = { ...this.props, ...arg };
       }
     }
+  }
+}
+
+class ComponentNode extends Node {
+  constructor(renderFn, initialState, args) {
+    super("Component", args);
+    this.renderFn = renderFn;
+    this.initialState = initialState;
   }
 }
 
@@ -19,13 +28,16 @@ const Button = (...args) => new Node("Button", args);
 
 function component(renderFn, initialState) {
   const f = (...args) => {
-    return new Node("Component", [
-      { renderFn, initialState, [renderFn.name]: true },
-      ...args,
-    ]);
+    return new ComponentNode(renderFn, initialState, args);
   };
   return f;
 }
+
+var MyComponent = component(function MyComponent(props) {
+  console.log("aaa ", typeof Math);
+  const random = Math.random();
+  return Text({ content: `Hoii ${random}` });
+});
 
 const Color = {
   Blue: "blue",
@@ -40,14 +52,23 @@ var Counter = component(
       setState({ count: state.count + 1 });
     };
     return VStack(
-      Text({ content: `${props.label}: ${state.count}` }),
+      Text({
+        content: `${props.label}: ${state.count}`,
+        foregroundColor: "red",
+      }),
+      state.count % 2 === 0
+        ? Text({ content: "EVEN", transition: "moveTop" })
+        : null,
+      MyComponent(),
       Button(
         Text({
           content: "Tap me",
+        }),
+        {
           background: Color.blue,
           foregroundColor: Color.white,
           cornerRadius: 8,
-        }),
+        },
         { action: increase }
       )
     );

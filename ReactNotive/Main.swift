@@ -24,16 +24,21 @@ func unwrapJSObject(_ jsObject: JSValue) -> [String: JSValue] {
     })
 }
 
-// Consider: make Hashable?
-struct Node: CustomStringConvertible {
+struct Node: CustomStringConvertible, Equatable {
     let type: String
     let props: [String: JSValue]
     let children: [Node]
+    
+    let renderFn: JSValue?
+    let initialState: [String: JSValue]?
 
     init(jsValue: JSValue) {
         self.type = jsValue.forProperty("type").toString()!
         self.props = unwrapJSObject(jsValue.forProperty("props"))
         self.children = unwrapJSArray(jsValue.forProperty("children")).map({ Node(jsValue: $0) })
+        
+        self.renderFn = jsValue.forProperty("renderFn") ?? nil;
+        self.initialState = jsValue.forProperty("initialState").flatMap({ unwrapJSObject($0) })
     }
     
     var description: String {
@@ -52,6 +57,7 @@ class JSComponentModel: ObservableObject {
     @Published var state: [String: JSValue]
 
     let context: JSContext
+    var subModels: [String: JSComponentModel] = [:]
 
     init(context: JSContext, renderFn: JSValue, props: [String: JSValue], children: [Node], state: [String: JSValue]) {
         self.context = context;
@@ -77,49 +83,146 @@ class JSComponentModel: ObservableObject {
         let result = renderFn.call(withArguments: [jsProps, jsState, jsSetState])!
         
         let node = Node(jsValue: result)
-        return renderNode(node)
+        return renderNode(node, atPath: [])
     }
 
-    func renderNode(_ node: Node) -> AnyView {
+    func renderNode(_ node: Node, atPath: [String]) -> AnyView {
         print("renderNode ", node) // TODO: triggered twice somehow
-
-        switch node.type {
-        case "Component":
-            // TODO: reuse model based on path we're at (/key prop?)
-            let model = JSComponentModel(
+        
+        if node.type == "Component" {
+            let subModelKey = atPath.joined(separator: " ")
+            if let existingModel = subModels[subModelKey] {
+                if (existingModel.renderFn == node.renderFn && existingModel.props == node.props && existingModel.children == node.children) {
+                    print("reuse existing model @ ", existingModel.renderFn)
+                    return AnyView(JSComponentView(model: existingModel))
+                }
+                print("update model @ ", subModelKey)
+            } else {
+                print("new model @ ", subModelKey)
+            }
+            let newModel = JSComponentModel(
                 context: context,
-                renderFn: node.props["renderFn"]!,
+                renderFn: node.renderFn!,
                 props: node.props,
-                children: children,
-                state: unwrapJSObject(node.props["initialState"]!)
+                children: node.children,
+                state: node.initialState!
             )
-            return AnyView(JSComponentView(model: model))
-
-        case "Text":
-            let text = node.props["content"]!.toString()!
-            return AnyView(Text(text))
-
-        case "Button":
-            return AnyView(Button(action: {
-                node.props["action"]!.call(withArguments: [])
-            }) {
-                ForEach(node.children.indices, id: \.self) { index in
-                    self.renderNode(node.children[index])
-                }
-            })
-
-        case "VStack":
-            return AnyView(VStack {
-                ForEach(node.children.indices, id: \.self) { index in
-                    self.renderNode(node.children[index])
-                }
-            })
-
-        default:
-            return AnyView(EmptyView())
+            subModels[subModelKey] = newModel;
+            return AnyView(JSComponentView(model: newModel))
         }
+        
+        @ViewBuilder
+        func renderChildren() -> some View {
+            ForEach(node.children.indices, id: \.self) { index in
+                self.renderNode(node.children[index], atPath: atPath + [String(index)])
+            }
+        }
+
+        var view: any View
+        switch node.type {
+        case "List":
+            view = List(content:renderChildren)
+        case "VStack":
+            view = VStack(content:renderChildren)
+        case "Text":
+            view = Text(node.props["content"]!.toString())
+        case "Button":
+            view = Button(
+                action: {
+                    withAnimation {
+                        _ = node.props["action"]!.call(withArguments: [])
+                    }
+                },
+                label: renderChildren
+            )
+        default:
+            view = EmptyView()
+        }
+        
+        view = applyModifiers(to: view, from: node.props)
+        return AnyView(view)
     }
 }
+
+func applyModifiers(to view: some View, from props: [String: JSValue]) -> AnyView {
+    var modifiedView: AnyView = AnyView(view)
+
+    for (key, value) in props {
+        switch key {
+        case "transition":
+            if let name = value.toString(), let transition = makeTransition(named: name) {
+                modifiedView = AnyView(modifiedView.transition(transition))
+            }
+
+        case "opacity":
+            if let number = value.toNumber() {
+                modifiedView = AnyView(modifiedView.opacity(number.doubleValue))
+            }
+
+        case "foregroundColor":
+            if let colorName = value.toString(), let color = makeColor(named: colorName) {
+                modifiedView = AnyView(modifiedView.foregroundColor(color))
+            }
+            
+        case "background":
+            if let colorName = value.toString(), let color = makeColor(named: colorName) {
+                modifiedView = AnyView(modifiedView.background(color))
+            }
+
+        case "frame":
+            if let dict = value.toObject() as? [String: JSValue] {
+                let width = dict["width"]?.toNumber().flatMap(CGFloat.init)
+                let height = dict["height"]?.toNumber().flatMap(CGFloat.init)
+                modifiedView = AnyView(modifiedView.frame(width: width, height: height))
+            }
+
+        case "padding":
+            if value.isNumber {
+                modifiedView = AnyView(modifiedView.padding(value.toNumber().doubleValue))
+            } else if let dict = value.toObject() as? [String: JSValue] {
+                let top = dict["top"]?.toNumber()?.doubleValue ?? 0
+                let bottom = dict["bottom"]?.toNumber()?.doubleValue ?? 0
+                let leading = dict["leading"]?.toNumber()?.doubleValue ?? 0
+                let trailing = dict["trailing"]?.toNumber()?.doubleValue ?? 0
+                modifiedView = AnyView(modifiedView.padding(.init(top: top, leading: leading, bottom: bottom, trailing: trailing)))
+            } else {
+                modifiedView = AnyView(modifiedView.padding())
+            }
+
+        default:
+            print("unknown modifier \(key)")
+            continue
+        }
+    }
+
+    return modifiedView
+}
+
+func makeTransition(named name: String) -> AnyTransition? {
+    switch name {
+    case "scale": return .scale
+    case "opacity": return .opacity
+    case "slide": return .slide
+    case "moveLeading": return .move(edge: .leading)
+    case "moveTrailing": return .move(edge: .trailing)
+    case "moveTop": return .move(edge: .top)
+    case "moveBottom": return .move(edge: .bottom)
+    default: return nil
+    }
+}
+
+func makeColor(named name: String) -> Color? {
+    switch name.lowercased() {
+    case "red": return .red
+    case "blue": return .blue
+    case "green": return .green
+    case "black": return .black
+    case "white": return .white
+    case "gray": return .gray
+    default: return nil
+    }
+}
+
 
 // MARK: - JSComponentView
 
@@ -136,8 +239,23 @@ func setupContext() -> JSContext {
     let context = JSContext()!
 
     // Add `console.log` shim
-    let consoleLog: @convention(block) (JSValue) -> Void = { message in
-        print("JavaScript log: \(message)")
+    let consoleLog: @convention(block) (JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2 in
+        let args: [JSValue] = [arg0, arg1, arg2].filter { !$0.isUndefined }
+        let descriptions = args.map { jsVal in
+            if jsVal.isString {
+                return jsVal.toString()! // "\"\(jsVal.toString()!)\""
+            } else if jsVal.isBoolean {
+                return jsVal.toBool() ? "true" : "false"
+            } else if jsVal.isNumber {
+                return "\(jsVal.toNumber()!)"
+            } else if jsVal.isArray || jsVal.isObject {
+                return jsVal.toObject().debugDescription
+            } else {
+                return jsVal.toString()
+            }
+        }
+
+        print("JS: ", descriptions.joined(separator: " "))
     }
     let console = JSValue(newObjectIn: context)!
     console.setObject(consoleLog, forKeyedSubscript: "log" as NSString)
