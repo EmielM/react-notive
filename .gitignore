@@ -1,1 +1,17 @@
-**/.DS_Store
+# Xcode
+.DS_Store
+# Xcode project-specific files
+xcuserdata/
+
+# Build artifacts
+build/
+DerivedData/
+
+# Generated files
+**/*.xcassets/AppIcon.appiconset/Contents.json
+**/*.xcassets/LaunchImage.launchimage/Contents.json
+
+# Other common ignored files
+.swiftpm/
+.vscode/
+.idea/

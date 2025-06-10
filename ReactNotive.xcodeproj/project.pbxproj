@@ -7,16 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1736C89D2DEA0562001031DA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C89C2DEA0562001031DA /* ContentView.swift */; };
 		1736C89F2DEA0563001031DA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1736C89E2DEA0563001031DA /* Assets.xcassets */; };
 		1736C8A22DEA0563001031DA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1736C8A12DEA0563001031DA /* Preview Assets.xcassets */; };
 		1736C8AC2DEA0563001031DA /* ReactNotiveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8AB2DEA0563001031DA /* ReactNotiveTests.swift */; };
 		1736C8B62DEA0563001031DA /* ReactNotiveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8B52DEA0563001031DA /* ReactNotiveUITests.swift */; };
 		1736C8B82DEA0563001031DA /* ReactNotiveUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8B72DEA0563001031DA /* ReactNotiveUITestsLaunchTests.swift */; };
-		1736C8C52DEA05E0001031DA /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8C42DEA05E0001031DA /* Main.swift */; };
-		1736C8C72DEA05F6001031DA /* JSRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8C62DEA05F6001031DA /* JSRootView.swift */; };
-		1736C8C92DEA0A55001031DA /* app.js in Resources */ = {isa = PBXBuildFile; fileRef = 1736C8C82DEA0A55001031DA /* app.js */; };
-		1736C8CB2DEA0BF2001031DA /* helpers.js in Resources */ = {isa = PBXBuildFile; fileRef = 1736C8CA2DEA0BF2001031DA /* helpers.js */; };
+		1736C8C52DEA05E0001031DA /* JavaScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8C42DEA05E0001031DA /* JavaScript.swift */; };
+		1736C8CB2DEA0BF2001031DA /* app.js in Resources */ = {isa = PBXBuildFile; fileRef = 1736C8CA2DEA0BF2001031DA /* app.js */; };
+		1736C8CF2DF87A46001031DA /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8CE2DF87A46001031DA /* Main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,7 +36,6 @@
 
 /* Begin PBXFileReference section */
 		1736C8972DEA0562001031DA /* ReactNotive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReactNotive.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1736C89C2DEA0562001031DA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1736C89E2DEA0563001031DA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1736C8A12DEA0563001031DA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1736C8A72DEA0563001031DA /* ReactNotiveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReactNotiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -46,10 +43,9 @@
 		1736C8B12DEA0563001031DA /* ReactNotiveUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReactNotiveUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1736C8B52DEA0563001031DA /* ReactNotiveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactNotiveUITests.swift; sourceTree = "<group>"; };
 		1736C8B72DEA0563001031DA /* ReactNotiveUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReactNotiveUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		1736C8C42DEA05E0001031DA /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
-		1736C8C62DEA05F6001031DA /* JSRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSRootView.swift; sourceTree = "<group>"; };
-		1736C8C82DEA0A55001031DA /* app.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = app.js; sourceTree = "<group>"; };
-		1736C8CA2DEA0BF2001031DA /* helpers.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = helpers.js; sourceTree = "<group>"; };
+		1736C8C42DEA05E0001031DA /* JavaScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScript.swift; sourceTree = "<group>"; };
+		1736C8CA2DEA0BF2001031DA /* app.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = app.js; sourceTree = "<group>"; };
+		1736C8CE2DF87A46001031DA /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,13 +96,11 @@
 		1736C8992DEA0562001031DA /* ReactNotive */ = {
 			isa = PBXGroup;
 			children = (
-				1736C8C42DEA05E0001031DA /* Main.swift */,
-				1736C8C62DEA05F6001031DA /* JSRootView.swift */,
-				1736C89C2DEA0562001031DA /* ContentView.swift */,
+				1736C8CE2DF87A46001031DA /* Main.swift */,
+				1736C8C42DEA05E0001031DA /* JavaScript.swift */,
+				1736C8CA2DEA0BF2001031DA /* app.js */,
 				1736C89E2DEA0563001031DA /* Assets.xcassets */,
 				1736C8A02DEA0563001031DA /* Preview Content */,
-				1736C8C82DEA0A55001031DA /* app.js */,
-				1736C8CA2DEA0BF2001031DA /* helpers.js */,
 			);
 			path = ReactNotive;
 			sourceTree = "<group>";
@@ -240,8 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1736C8CB2DEA0BF2001031DA /* helpers.js in Resources */,
-				1736C8C92DEA0A55001031DA /* app.js in Resources */,
+				1736C8CB2DEA0BF2001031DA /* app.js in Resources */,
 				1736C8A22DEA0563001031DA /* Preview Assets.xcassets in Resources */,
 				1736C89F2DEA0563001031DA /* Assets.xcassets in Resources */,
 			);
@@ -268,9 +261,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1736C8C52DEA05E0001031DA /* Main.swift in Sources */,
-				1736C89D2DEA0562001031DA /* ContentView.swift in Sources */,
-				1736C8C72DEA05F6001031DA /* JSRootView.swift in Sources */,
+				1736C8C52DEA05E0001031DA /* JavaScript.swift in Sources */,
+				1736C8CF2DF87A46001031DA /* Main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
