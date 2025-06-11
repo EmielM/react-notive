@@ -15,6 +15,7 @@
 		1736C8C52DEA05E0001031DA /* JavaScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8C42DEA05E0001031DA /* JavaScript.swift */; };
 		1736C8CB2DEA0BF2001031DA /* app.js in Resources */ = {isa = PBXBuildFile; fileRef = 1736C8CA2DEA0BF2001031DA /* app.js */; };
 		1736C8CF2DF87A46001031DA /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8CE2DF87A46001031DA /* Main.swift */; };
+		1736C8D12DF9C611001031DA /* NativeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1736C8D02DF9C611001031DA /* NativeView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +47,7 @@
 		1736C8C42DEA05E0001031DA /* JavaScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScript.swift; sourceTree = "<group>"; };
 		1736C8CA2DEA0BF2001031DA /* app.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = app.js; sourceTree = "<group>"; };
 		1736C8CE2DF87A46001031DA /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
+		1736C8D02DF9C611001031DA /* NativeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +103,7 @@
 				1736C8CA2DEA0BF2001031DA /* app.js */,
 				1736C89E2DEA0563001031DA /* Assets.xcassets */,
 				1736C8A02DEA0563001031DA /* Preview Content */,
+				1736C8D02DF9C611001031DA /* NativeView.swift */,
 			);
 			path = ReactNotive;
 			sourceTree = "<group>";
@@ -263,6 +266,7 @@
 			files = (
 				1736C8C52DEA05E0001031DA /* JavaScript.swift in Sources */,
 				1736C8CF2DF87A46001031DA /* Main.swift in Sources */,
+				1736C8D12DF9C611001031DA /* NativeView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

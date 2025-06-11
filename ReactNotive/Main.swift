@@ -4,21 +4,26 @@ import JavaScriptCore
 func gatherTree(context: JSContext, cb: () -> Void) -> AnyView {
     var collectedViews: [AnyView] = []
 
-    let hBlock: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2, arg3, arg4 in
-        let jsArguments = [arg1, arg2, arg3, arg4].filter { $0.isObject }
-
+    // h("VStack", {some: "prop", propB: 123}, {more: "props"}, () => {
+    //     h("Text", {color: 'white'}, "text")
+    // })
+    let hBlock: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2, arg3, arg4, arg5 in
         var props: [String: JSValue] = [:]
         var childrenFunc: () -> AnyView = {
             AnyView(EmptyView())
         }
-        for jsArgument in jsArguments {
+        // Supporting 6 args is a bit arbitrary, no way to bind varargs to swift blocks easily
+        for jsArgument in [arg1, arg2, arg3, arg4, arg5] {
             if jsArgument.isFunction {
                 childrenFunc = {
                     gatherTree(context: context) {
                         jsArgument.call(withArguments: [])
                     }
                 }
-            } else {
+            } else if jsArgument.isString {
+                // Treat strings as {content: "string"} prop
+                props["content"] = jsArgument
+            } else if jsArgument.isObject {
                 let newProps = unwrapJSObject(jsArgument)
                 props.merge(newProps) { (_, new) in new }
             }
@@ -34,7 +39,9 @@ func gatherTree(context: JSContext, cb: () -> Void) -> AnyView {
     
         switch (arg0.toString()) {
         case "VStack":
-            view = VStack(content:childrenFunc)
+            let spacing = toCGFloat(props["spacing"])
+            props.removeValue(forKey:"spacing")
+            view = VStack(spacing:spacing,content:childrenFunc)
         case "Button":
             let action = props["action"]!
             let actionFunc = {
@@ -120,57 +127,97 @@ struct JSView: View {
 
 
 func applyViewModifiers(to view: some View, from props: [String: JSValue]) -> AnyView {
-    var modifiedView: AnyView = AnyView(view)
+    var modifiedView: any View = view
 
-    for (key, value) in props {
-        switch key {
-        case "transition":
-            if let name = value.toString(), let transition = makeTransition(named: name) {
-                modifiedView = AnyView(modifiedView.transition(transition))
-            }
+    // Always apply props in the same order, as it matters in SwiftUI how things are applioed
+    // - It does mean we're not as versatile from javascript
+    // - Consider: using multi-props argument, support ordering here?
 
-        case "opacity":
-            if let number = value.toNumber() {
-                modifiedView = AnyView(modifiedView.opacity(number.doubleValue))
-            }
+    if let paddingProp = props["padding"] {
+        if paddingProp.isNull {
+            modifiedView = modifiedView.padding()
+        } else if paddingProp.isNumber {
+            modifiedView = modifiedView.padding(toCGFloat(paddingProp) ?? 0)
+        } else if paddingProp.isObject {
+            let padding = unwrapJSObject(paddingProp)
+            modifiedView = modifiedView.padding(EdgeInsets(
+                top: padding["top"].flatMap { toCGFloat($0) } ?? 0,
+                leading: padding["leading"].flatMap { toCGFloat($0) } ?? 0,
+                bottom: padding["bottom"].flatMap { toCGFloat($0) } ?? 0,
+                trailing: padding["trailing"].flatMap { toCGFloat($0) } ?? 0
+            ))
+        }
+    }
+    
+    if let frameProp = props["frame"], frameProp.isObject {
+        let frame = unwrapJSObject(frameProp)
+        modifiedView = modifiedView.frame(
+            width: frame["width"].flatMap { toCGFloat($0) },
+            height: frame["height"].flatMap { toCGFloat($0) },
+            alignment: .center
+        ).frame(
+            maxWidth: frame["maxWidth"].flatMap { toCGFloat($0) },
+            maxHeight: frame["maxHeight"].flatMap { toCGFloat($0) }
+        )
+    }
 
-        case "foregroundColor":
-            if let colorName = value.toString(), let color = makeColor(named: colorName) {
-                modifiedView = AnyView(modifiedView.foregroundColor(color))
-            }
-            
-        case "background":
-            if let colorName = value.toString(), let color = makeColor(named: colorName) {
-                modifiedView = AnyView(modifiedView.background(color))
-            }
 
-        case "frame":
-            if let dict = value.toObject() as? [String: JSValue] {
-                let width = dict["width"]?.toNumber().flatMap(CGFloat.init)
-                let height = dict["height"]?.toNumber().flatMap(CGFloat.init)
-                modifiedView = AnyView(modifiedView.frame(width: width, height: height))
-            }
+    if let transitionProp = props["transition"]?.toString() {
+        if let transition = makeTransition(named: transitionProp) {
+            modifiedView = modifiedView.transition(transition)
+        }
+    }
+    
+    if let opacityProp = props["opacity"]?.toNumber() {
+        modifiedView = modifiedView.opacity(opacityProp.doubleValue)
+    }
 
-        case "padding":
-            if value.isNumber {
-                modifiedView = AnyView(modifiedView.padding(value.toNumber().doubleValue))
-            } else if let dict = value.toObject() as? [String: JSValue] {
-                let top = dict["top"]?.toNumber()?.doubleValue ?? 0
-                let bottom = dict["bottom"]?.toNumber()?.doubleValue ?? 0
-                let leading = dict["leading"]?.toNumber()?.doubleValue ?? 0
-                let trailing = dict["trailing"]?.toNumber()?.doubleValue ?? 0
-                modifiedView = AnyView(modifiedView.padding(.init(top: top, leading: leading, bottom: bottom, trailing: trailing)))
-            } else {
-                modifiedView = AnyView(modifiedView.padding())
-            }
-
-        default:
-            print("unknown modifier \(key)")
-            continue
+    if let foregroundColorProp = props["foregroundColor"]?.toString() {
+        if let color = makeColor(named: foregroundColorProp) {
+            modifiedView = modifiedView.foregroundColor(color)
         }
     }
 
-    return modifiedView
+    if let backgroundProp = props["background"]?.toString() {
+        if let color = makeColor(named: backgroundProp) {
+            modifiedView = modifiedView.background(color)
+        }
+    }
+    
+    if let fontProp = props["font"]?.toString() {
+        switch fontProp {
+        case "largeTitle": modifiedView = modifiedView.font(.largeTitle)
+        case "title": modifiedView = modifiedView.font(.title)
+        case "headline": modifiedView = modifiedView.font(.headline)
+        case "body": modifiedView = modifiedView.font(.body)
+        default: break
+        }
+    }
+    
+    if let fontWeightProp = props["fontWeight"]?.toString() {
+        switch fontWeightProp {
+        case "semibold": modifiedView = modifiedView.fontWeight(.semibold)
+        case "bold": modifiedView = modifiedView.fontWeight(.bold)
+        case "regular": modifiedView = modifiedView.fontWeight(.regular)
+        default: break
+        }
+    }
+
+    if let cornerRadiusProp = props["cornerRadius"]?.toNumber() {
+        modifiedView = modifiedView.cornerRadius(CGFloat(cornerRadiusProp.doubleValue))
+    }
+
+    return AnyView(modifiedView)
+}
+
+// Helper
+func toCGFloat(_ value: JSValue?) -> CGFloat? {
+    guard let number = value?.toNumber() else { return nil }
+    let doubleValue = number.doubleValue
+    if doubleValue == Double.infinity {
+        return .infinity
+    }
+    return CGFloat(doubleValue)
 }
 
 func makeTransition(named name: String) -> AnyTransition? {
@@ -217,6 +264,7 @@ struct JSApp: App {
     var body: some Scene {
         WindowGroup {
             JSRoot()
+            //NativeView()
         }
     }
 }
