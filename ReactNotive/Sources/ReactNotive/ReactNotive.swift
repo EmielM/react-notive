@@ -84,13 +84,13 @@ func gatherTree(context: JSContext, cb: () -> Void) -> AnyView {
 
 }
 
-struct JSView: View {
+public struct JSView: View {
     var renderFn: JSValue
     // TODO: should we put in JSValues here directly? How do they equate?
     var props: [String: Any]
     @State var state: [String: Any]? = nil
     
-    init(_ renderFn: JSValue, props: [String: Any] = [:]) {
+    public init(_ renderFn: JSValue, props: [String: Any] = [:]) {
         self.renderFn = renderFn
         self.props = props
         if self._state.wrappedValue == nil {
@@ -110,7 +110,7 @@ struct JSView: View {
         self.state = self.state!.merging(unwrapJSObject(state)) { (_, new) in new }
     }
 
-    var body: some View {
+    public var body: some View {
         let context = renderFn.context!;
         let jsProps = JSValue(object: props, in: context)!
         let jsState = JSValue(object: state, in: context)!
@@ -241,30 +241,7 @@ func makeColor(named name: String) -> Color? {
     case "black": return .black
     case "white": return .white
     case "gray": return .gray
+    case "systemGroupedBackground": return .yellow //Color(.systemGroupedBackground)
     default: return nil
-    }
-}
-
-
-struct JSRoot: View {
-    let context = setupJSContext()
-    let jsCode = loadJSCode(named:"app")
-
-    var body: some View {
-        print("evaluating jsCode \(jsCode.count)b")
-        context.evaluateScript(jsCode)
-        let appComponent = context.objectForKeyedSubscript("App")!
-        return JSView(appComponent)
-    }
-}
-
-
-@main
-struct JSApp: App {
-    var body: some Scene {
-        WindowGroup {
-            JSRoot()
-            //NativeView()
-        }
     }
 }

@@ -15,3 +15,5 @@ DerivedData/
 .swiftpm/
 .vscode/
 .idea/
+
+node_modules/

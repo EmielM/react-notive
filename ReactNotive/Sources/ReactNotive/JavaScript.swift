@@ -1,7 +1,7 @@
 import SwiftUI
 import JavaScriptCore
 
-func setupJSContext() -> JSContext {
+public func setupJSContext() -> JSContext {
     let context = JSContext()!
 
     // Add `console.log` shim
@@ -50,7 +50,7 @@ func setupJSContext() -> JSContext {
     return context
 }
 
-func loadJSCode(named fileName: String) -> String {
+public func loadJSCode(named fileName: String) -> String {
     let url = Bundle.main.url(forResource: fileName, withExtension: "js")!
     return try! String(contentsOf: url)
 }

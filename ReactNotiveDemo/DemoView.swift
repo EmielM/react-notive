@@ -26,6 +26,6 @@ struct NativeView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(.yellow)
     }
 }
