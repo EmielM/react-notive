@@ -1,21 +1,49 @@
-// h() helper makes things lazily executable by native
+// ../ReactNotive/nativeElements.ts
+var VStack = "VStack";
+var Text = "Text";
+var Button = "Button";
 
-function Counter(props, state, setState) {
-    h("VStack", {spacing: 20, padding: null, frame: {maxWidth: Infinity, maxHeight: Infinity}, background: 'systemGroupedBackground'}, () => {
-        h("Text", {font: 'largeTitle', fontWeight: 'semibold'}, props.label);
-        h("Text", {foregroundColor: 'gray'}, `You tapped ${state.count} times`);
-        
-        const increase = () => {
-            setState({count: state.count + 1});
-        };
-        
-        h("Button", {action: increase}, () => {
-            h("Text", {padding: null, frame: {maxWidth: Infinity}, background: 'blue', foregroundColor: 'white', cornerRadius: 10}, "Tap me");
-        });
-    });
+// ../ReactNotive/index.ts
+function jsx(type, props, children) {
+  return [type, children ? { ...props, children } : props];
 }
-Counter.initialState = {count: 0};
-
-function App() {
-    h(Counter, {label: "Hello World"})
-}
+// app.tsx
+var Counter = (props, state, setState) => {
+  const increase = () => {
+    setState({ count: state.count + 1 });
+  };
+  return /* @__PURE__ */ jsx(VStack, {
+    spacing: 10,
+    padding: null,
+    frame: { maxWidth: Infinity, maxHeight: Infinity },
+    background: "systemGroupedBackground",
+    children: [
+      /* @__PURE__ */ jsx(Text, {
+        font: "largeTitle",
+        fontWeight: "semibold",
+        children: props.label
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsx(Text, {
+        foregroundColor: "gray",
+        children: `You tapped ${state.count} times`
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsx(Button, {
+        action: increase,
+        children: /* @__PURE__ */ jsx(Text, {
+          padding: null,
+          frame: { maxWidth: Infinity },
+          background: "blue",
+          foregroundColor: "white",
+          cornerRadius: 10,
+          children: "Tap me"
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this)
+    ]
+  }, undefined, true, undefined, this);
+};
+Counter.initialState = { count: 1 };
+global.App = () => {
+  return /* @__PURE__ */ jsx(Counter, {
+    label: "Hello World"
+  }, undefined, false, undefined, this);
+};

@@ -1,1 +1,1 @@
-export { h, Fragment } from "./index";
+export { jsx } from "./index";

@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "nodenext",
-
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "node",
     "jsx": "react-jsx",
     "jsxImportSource": "react-notive",
-
-    "baseUrl": ".", // Required for paths to work
+    "strict": true,
     "paths": {
       "react-notive": ["../ReactNotive/index.ts"]
     }
   }
+  // "references": [{ "path": "../ReactNotive" }]
 }
