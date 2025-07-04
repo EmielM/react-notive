@@ -4,8 +4,8 @@ var Text = "Text";
 var Button = "Button";
 
 // ../ReactNotive/index.ts
-function jsx(type, props, children) {
-  return [type, children ? { ...props, children } : props];
+function jsx(type, props) {
+  return { type, props };
 }
 // app.tsx
 var Counter = (props, state, setState) => {
@@ -42,8 +42,9 @@ var Counter = (props, state, setState) => {
   }, undefined, true, undefined, this);
 };
 Counter.initialState = { count: 1 };
-global.App = () => {
+var App = () => {
   return /* @__PURE__ */ jsx(Counter, {
     label: "Hello World"
   }, undefined, false, undefined, this);
 };
+registerApp(App);

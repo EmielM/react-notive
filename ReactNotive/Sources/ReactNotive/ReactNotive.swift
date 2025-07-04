@@ -1,88 +1,150 @@
 import SwiftUI
 import JavaScriptCore
 
-func gatherTree(context: JSContext, cb: () -> Void) -> AnyView {
-    var collectedViews: [AnyView] = []
-
-    // h("VStack", {some: "prop", propB: 123}, {more: "props"}, () => {
-    //     h("Text", {color: 'white'}, "text")
-    // })
-    let hBlock: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2, arg3, arg4, arg5 in
-        var props: [String: JSValue] = [:]
-        var childrenFunc: () -> AnyView = {
-            AnyView(EmptyView())
-        }
-        // Supporting 6 args is a bit arbitrary, no way to bind varargs to swift blocks easily
-        for jsArgument in [arg1, arg2, arg3, arg4, arg5] {
-            if jsArgument.isFunction {
-                childrenFunc = {
-                    gatherTree(context: context) {
-                        jsArgument.call(withArguments: [])
-                    }
-                }
-            } else if jsArgument.isString {
-                // Treat strings as {content: "string"} prop
-                props["content"] = jsArgument
-            } else if jsArgument.isObject {
-                let newProps = unwrapJSObject(jsArgument)
-                props.merge(newProps) { (_, new) in new }
-            }
-        }
-        
-        var view: any View
-        if arg0.isFunction {
-            // Another component
-            view = JSView(arg0, props: props)
-            collectedViews.append(AnyView(view))
-            return
-        }
-    
-        switch (arg0.toString()) {
-        case "VStack":
-            let spacing = toCGFloat(props["spacing"])
-            props.removeValue(forKey:"spacing")
-            view = VStack(spacing:spacing,content:childrenFunc)
-        case "Button":
-            let action = props["action"]!
-            let actionFunc = {
-                _ = action.call(withArguments: [])
-            }
-            props.removeValue(forKey: "action")
-            view = Button(action: actionFunc, label:childrenFunc)
-        case "Text":
-            let content = props["content"]?.toString() ?? ""
-            props.removeValue(forKey: "content")
-            view = Text(content)
-        default:
-            print("unknown native element ", arg0)
-            return;
-        }
-        view = applyViewModifiers(to: view, from: props)
-        collectedViews.append(AnyView(view))
+func renderNode(_ node: JSValue) -> AnyView {
+    if !node.isObject || node.isNull {
+        fatalError("renderNode not an object")
     }
-
-    let prevHBlock = context.objectForKeyedSubscript("h")
-    context.setObject(unsafeBitCast(hBlock, to: AnyObject.self),
-                      forKeyedSubscript: "h" as NSString)
-
-    // Execute callback, that will invoke hBlocks above
-    cb()
     
-    // Reset h() to previous
-    context.setObject(prevHBlock, forKeyedSubscript: "h" as NSString)
-
-    // Consider:
-    // if collectedViews.count == 0 {
-    //     return AnyView(EmptyView())
-    // }
-    // if collectedViews.count == 1 {
-    //     return AnyView(collectedViews.first)
-    // }
-    return AnyView(ForEach(0..<collectedViews.count, id: \.self) { index in
-        collectedViews[index]
-    })
-
+    let type = node.objectForKeyedSubscript("type")!
+    var props = unwrapJSObject(node.objectForKeyedSubscript("props"))
+    
+    if type.isFunction {
+        // Another component
+        return AnyView(JSView(type, props: props))
+    }
+    
+    var childrenFunc: () -> AnyView = {
+        AnyView(EmptyView())
+    }
+    
+    let childrenProp = props["children"]
+    if let childrenProp, childrenProp.isArray {
+        // Multiple children
+        let childrenArray = unwrapJSArray(childrenProp)
+        childrenFunc = {
+            return AnyView(ForEach(Array(childrenArray.enumerated()), id: \.offset) { index, childNode in
+                return AnyView(renderNode(childNode))
+            })
+        }
+        props.removeValue(forKey: "children")
+    } else if let childrenProp, childrenProp.isObject {
+        // Single child
+        childrenFunc = {
+            return AnyView(renderNode(childrenProp))
+        }
+        props.removeValue(forKey: "children")
+    }
+    
+    var view: any View;
+    switch (type.toString()) {
+    case "VStack":
+        let spacing = toCGFloat(props["spacing"])
+        props.removeValue(forKey:"spacing")
+        view = VStack(spacing:spacing,content:childrenFunc)
+    case "Button":
+        let action = props["action"]!
+        let actionFunc = {
+            _ = action.call(withArguments: [])
+        }
+        props.removeValue(forKey: "action")
+        view = Button(action: actionFunc, label:childrenFunc)
+    case "Text":
+        let content = props["children"]?.toString() ?? ""
+        props.removeValue(forKey: "content")
+        view = Text(content)
+    default:
+        print("unknown native element ", node)
+        view = EmptyView();
+    }
+    
+    view = applyViewModifiers(to: view, from: props)
+    return AnyView(view)
 }
+
+
+    
+//
+//
+//    // h("VStack", {some: "prop", propB: 123}, {more: "props"}, () => {
+//    //     h("Text", {color: 'white'}, "text")
+//    // })
+//    let hBlock: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2, arg3, arg4, arg5 in
+//        var props: [String: JSValue] = [:]
+//        var childrenFunc: () -> AnyView = {
+//            AnyView(EmptyView())
+//        }
+//        // Supporting 6 args is a bit arbitrary, no way to bind varargs to swift blocks easily
+//        for jsArgument in [arg1, arg2, arg3, arg4, arg5] {
+//            if jsArgument.isFunction {
+//                childrenFunc = {
+//                    gatherTree(context: context) {
+//                        jsArgument.call(withArguments: [])
+//                    }
+//                }
+//            } else if jsArgument.isString {
+//                // Treat strings as {content: "string"} prop
+//                props["content"] = jsArgument
+//            } else if jsArgument.isObject {
+//                let newProps = unwrapJSObject(jsArgument)
+//                props.merge(newProps) { (_, new) in new }
+//            }
+//        }
+//        
+//        var view: any View
+//        if arg0.isFunction {
+//            // Another component
+//            view = JSView(arg0, props: props)
+//            collectedViews.append(AnyView(view))
+//            return
+//        }
+//    
+//        switch (arg0.toString()) {
+//        case "VStack":
+//            let spacing = toCGFloat(props["spacing"])
+//            props.removeValue(forKey:"spacing")
+//            view = VStack(spacing:spacing,content:childrenFunc)
+//        case "Button":
+//            let action = props["action"]!
+//            let actionFunc = {
+//                _ = action.call(withArguments: [])
+//            }
+//            props.removeValue(forKey: "action")
+//            view = Button(action: actionFunc, label:childrenFunc)
+//        case "Text":
+//            let content = props["content"]?.toString() ?? ""
+//            props.removeValue(forKey: "content")
+//            view = Text(content)
+//        default:
+//            print("unknown native element ", arg0)
+//            return;
+//        }
+//        view = applyViewModifiers(to: view, from: props)
+//        collectedViews.append(AnyView(view))
+//    }
+//
+//    let prevHBlock = context.objectForKeyedSubscript("h")
+//    context.setObject(unsafeBitCast(hBlock, to: AnyObject.self),
+//                      forKeyedSubscript: "h" as NSString)
+//
+//    // Execute callback, that will invoke hBlocks above
+//    cb()
+//    
+//    // Reset h() to previous
+//    context.setObject(prevHBlock, forKeyedSubscript: "h" as NSString)
+//
+//    // Consider:
+//    // if collectedViews.count == 0 {
+//    //     return AnyView(EmptyView())
+//    // }
+//    // if collectedViews.count == 1 {
+//    //     return AnyView(collectedViews.first)
+//    // }
+//    return AnyView(ForEach(0..<collectedViews.count, id: \.self) { index in
+//        collectedViews[index]
+//    })
+//
+//}
 
 public struct JSView: View {
     var renderFn: JSValue
@@ -119,9 +181,8 @@ public struct JSView: View {
         }
         let jsSetState = JSValue(object: setStateCallback, in: context)!
 
-        return gatherTree(context: context) {
-            renderFn.call(withArguments: [jsProps, jsState, jsSetState])
-        }
+        let node = renderFn.call(withArguments: [jsProps, jsState, jsSetState])!;
+        return renderNode(node)
     }
 }
 

@@ -21,7 +21,7 @@ type AnyType =
   | StatefulComponent<any, any>
   | keyof NativeElements;
 
-export type Node = [AnyType, AnyProps];
+export type Node = { type: AnyType; props: AnyProps };
 
 export type ExtractProps<C extends AnyType> = C extends StatefulComponent<
   infer P,
@@ -34,13 +34,11 @@ export type ExtractProps<C extends AnyType> = C extends StatefulComponent<
   ? NativeElements[C]
   : never;
 
-export function jsx<T extends AnyType>(
-  type: T,
-  props: Omit<ExtractProps<T>, "children">,
-  children?: ExtractProps<T>["children"]
-): Node {
-  return [type, children ? { ...props, children } : props];
+export function jsx<T extends AnyType>(type: T, props: ExtractProps<T>): Node {
+  return { type, props };
 }
+
+export const jsxs = jsx;
 
 declare global {
   namespace JSX {
@@ -53,4 +51,6 @@ declare global {
     type IntrinsicElements = NativeElements;
     // type LibraryManagedAttributes<T extends AnyType, P> = ExtractProps<T>;
   }
+
+  function registerApp(app: Component<any>): void;
 }

@@ -47,6 +47,13 @@ public func setupJSContext() -> JSContext {
         print("📍 Stack trace:\n\(stack)")
     }
     
+    let registerApp: @convention(block) (JSValue) -> Void = { appComponent in
+        // TODO: use the appComponent passed here (where to save?), instead of getting global.App
+        print("registerApp? ", appComponent)
+    }
+    
+    context.setObject(registerApp, forKeyedSubscript: "registerApp" as NSString)
+    
     return context
 }
 
@@ -83,10 +90,14 @@ extension JSValue {
         guard self.isObject else {
             return false
         }
+        
+        var isFunction = self.context.objectForKeyedSubscript("_isFunction")!
+        if isFunction.isUndefined {
+            print("Injecting _isFunction!");
+            self.context.evaluateScript("function _isFunction(value) { return typeof value === 'function'; }");
+            isFunction = self.context.objectForKeyedSubscript("_isFunction")
+        }
 
-        // Heuristic based on description
-        // TODO: improve (ideally without resorting to evaluateJS)
-        let desc = self.description
-        return desc.hasPrefix("() =>") || desc.hasPrefix("function(") || desc.hasPrefix("function ")
+        return isFunction.call(withArguments:[self])!.toBool()
     }
 }
