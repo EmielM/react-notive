@@ -2,6 +2,8 @@ import type { NativeElements } from "./nativeElements";
 
 export { VStack, Text, Button } from "./nativeElements";
 
+// Consider: maintain as index.d.ts directly for better composite package support without build step
+
 type AnyProps = Record<string, any>;
 type AnyState = Record<string, any>;
 
@@ -40,6 +42,9 @@ export function jsx<T extends AnyType>(type: T, props: ExtractProps<T>): Node {
   return { type, props };
 }
 
+// App component has/receives no props yet
+type AppProps = {};
+
 declare global {
   namespace JSX {
     type Element = Node;
@@ -51,5 +56,5 @@ declare global {
     type IntrinsicElements = NativeElements;
   }
 
-  function registerApp(app: Component<any>): void;
+  function registerApp(app: Component<AppProps>): void;
 }
