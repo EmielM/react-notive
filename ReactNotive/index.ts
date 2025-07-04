@@ -7,7 +7,8 @@ type AnyState = Record<string, any>;
 
 // A component is a function that takes props and returns a node
 // Define as const MyComponent: Component<MyComponentProps> = (props) => ...
-export type Component<P extends AnyProps> = (props: P) => Node;
+// Template default is propertyless: const App: Component = () => {}
+export type Component<P extends AnyProps = {}> = (props: P) => Node;
 
 // A stateful component defines .initialState and receives state and setState
 // Define as const MyComponent: StatefulComponent<MyComponentProps, MyComponentState> = (props, state, setState) => ...
@@ -21,6 +22,7 @@ type AnyType =
   | StatefulComponent<any, any>
   | keyof NativeElements;
 
+// Consider: call this Element instead of Node?
 export type Node = { type: AnyType; props: AnyProps };
 
 export type ExtractProps<C extends AnyType> = C extends StatefulComponent<
@@ -38,8 +40,6 @@ export function jsx<T extends AnyType>(type: T, props: ExtractProps<T>): Node {
   return { type, props };
 }
 
-export const jsxs = jsx;
-
 declare global {
   namespace JSX {
     type Element = Node;
@@ -49,7 +49,6 @@ declare global {
     }
 
     type IntrinsicElements = NativeElements;
-    // type LibraryManagedAttributes<T extends AnyType, P> = ExtractProps<T>;
   }
 
   function registerApp(app: Component<any>): void;

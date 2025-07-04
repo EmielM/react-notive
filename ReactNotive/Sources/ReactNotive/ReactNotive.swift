@@ -62,90 +62,6 @@ func renderNode(_ node: JSValue) -> AnyView {
     return AnyView(view)
 }
 
-
-    
-//
-//
-//    // h("VStack", {some: "prop", propB: 123}, {more: "props"}, () => {
-//    //     h("Text", {color: 'white'}, "text")
-//    // })
-//    let hBlock: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { arg0, arg1, arg2, arg3, arg4, arg5 in
-//        var props: [String: JSValue] = [:]
-//        var childrenFunc: () -> AnyView = {
-//            AnyView(EmptyView())
-//        }
-//        // Supporting 6 args is a bit arbitrary, no way to bind varargs to swift blocks easily
-//        for jsArgument in [arg1, arg2, arg3, arg4, arg5] {
-//            if jsArgument.isFunction {
-//                childrenFunc = {
-//                    gatherTree(context: context) {
-//                        jsArgument.call(withArguments: [])
-//                    }
-//                }
-//            } else if jsArgument.isString {
-//                // Treat strings as {content: "string"} prop
-//                props["content"] = jsArgument
-//            } else if jsArgument.isObject {
-//                let newProps = unwrapJSObject(jsArgument)
-//                props.merge(newProps) { (_, new) in new }
-//            }
-//        }
-//        
-//        var view: any View
-//        if arg0.isFunction {
-//            // Another component
-//            view = JSView(arg0, props: props)
-//            collectedViews.append(AnyView(view))
-//            return
-//        }
-//    
-//        switch (arg0.toString()) {
-//        case "VStack":
-//            let spacing = toCGFloat(props["spacing"])
-//            props.removeValue(forKey:"spacing")
-//            view = VStack(spacing:spacing,content:childrenFunc)
-//        case "Button":
-//            let action = props["action"]!
-//            let actionFunc = {
-//                _ = action.call(withArguments: [])
-//            }
-//            props.removeValue(forKey: "action")
-//            view = Button(action: actionFunc, label:childrenFunc)
-//        case "Text":
-//            let content = props["content"]?.toString() ?? ""
-//            props.removeValue(forKey: "content")
-//            view = Text(content)
-//        default:
-//            print("unknown native element ", arg0)
-//            return;
-//        }
-//        view = applyViewModifiers(to: view, from: props)
-//        collectedViews.append(AnyView(view))
-//    }
-//
-//    let prevHBlock = context.objectForKeyedSubscript("h")
-//    context.setObject(unsafeBitCast(hBlock, to: AnyObject.self),
-//                      forKeyedSubscript: "h" as NSString)
-//
-//    // Execute callback, that will invoke hBlocks above
-//    cb()
-//    
-//    // Reset h() to previous
-//    context.setObject(prevHBlock, forKeyedSubscript: "h" as NSString)
-//
-//    // Consider:
-//    // if collectedViews.count == 0 {
-//    //     return AnyView(EmptyView())
-//    // }
-//    // if collectedViews.count == 1 {
-//    //     return AnyView(collectedViews.first)
-//    // }
-//    return AnyView(ForEach(0..<collectedViews.count, id: \.self) { index in
-//        collectedViews[index]
-//    })
-//
-//}
-
 public struct JSView: View {
     var renderFn: JSValue
     // TODO: should we put in JSValues here directly? How do they equate?
@@ -221,7 +137,6 @@ func applyViewModifiers(to view: some View, from props: [String: JSValue]) -> An
             maxHeight: frame["maxHeight"].flatMap { toCGFloat($0) }
         )
     }
-
 
     if let transitionProp = props["transition"]?.toString() {
         if let transition = makeTransition(named: transitionProp) {

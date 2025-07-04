@@ -25,7 +25,7 @@ const Counter: StatefulComponent<CounterProps, CounterState> = (props, state, se
 }
 Counter.initialState = {count: 1};
 
-const App = () => {
+const App: Component = () => {
     return <Counter label="Hello World" />;
 }
 

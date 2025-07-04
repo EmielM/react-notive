@@ -1,1 +1,1 @@
-export { jsx, jsxs } from "./index";
+export { jsx, jsx as jsxs } from "./index";
