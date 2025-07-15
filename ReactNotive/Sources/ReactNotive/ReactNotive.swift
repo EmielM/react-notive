@@ -2,80 +2,78 @@ import SwiftUI
 import JavaScriptCore
 
 func renderNode(_ node: JSValue) -> AnyView {
-    if !node.isObject || node.isNull {
+    guard node.isObject, !node.isNull
+    else {
         fatalError("renderNode not an object")
     }
     
     let type = node.objectForKeyedSubscript("type")!
-    var props = unwrapJSObject(node.objectForKeyedSubscript("props"))
-    
+    let props = node.objectForKeyedSubscript("props")!
     if type.isFunction {
         // Another component
-        return AnyView(JSView(type, props: props))
+        guard let props0: [String: JSValue] = props.bridge()
+        else {
+            fatalError("Could not unwrap props")
+        }
+        return AnyView(JSView(type, props: props0))
     }
     
-    var childrenFunc: () -> AnyView = {
-        AnyView(EmptyView())
+    guard let typeString: String = type.bridge(),
+          let factory = ViewRegistry.factories[typeString]
+    else {
+        print("unknown native element ", type)
+        return AnyView(EmptyView())
     }
     
-    let childrenProp = props["children"]
-    if let childrenProp, childrenProp.isArray {
+    guard let view: AnyView = factory(props)
+    else {
+        print("could not render ", type, " ", props)
+        return AnyView(EmptyView())
+    }
+    
+    let modifiedView = applyViewModifiers(to: view, from: props)
+    return modifiedView
+}
+
+// Returns a swiftUI "content" closure, usually based based on jsx "children" prop
+func getRenderer(forChildren: JSValue) -> () -> AnyView {
+    if let children: [JSValue] = forChildren.bridge() {
         // Multiple children
-        let childrenArray = unwrapJSArray(childrenProp)
-        childrenFunc = {
-            return AnyView(ForEach(Array(childrenArray.enumerated()), id: \.offset) { index, childNode in
-                return AnyView(renderNode(childNode))
+        return {
+            AnyView(ForEach(Array(children.enumerated()), id: \.offset) { index, child in
+                return renderNode(child)
             })
         }
-        props.removeValue(forKey: "children")
-    } else if let childrenProp, childrenProp.isObject {
+    } else if forChildren.isObject && !forChildren.isNull {
         // Single child
-        childrenFunc = {
-            return AnyView(renderNode(childrenProp))
+        let singleChild = forChildren
+        return {
+            renderNode(singleChild)
         }
-        props.removeValue(forKey: "children")
-    }
-    
-    var view: any View;
-    switch (type.toString()) {
-    case "VStack":
-        let spacing = toCGFloat(props["spacing"])
-        props.removeValue(forKey:"spacing")
-        view = VStack(spacing:spacing,content:childrenFunc)
-    case "Button":
-        let action = props["action"]!
-        let actionFunc = {
-            _ = action.call(withArguments: [])
+    } else {
+        return {
+            AnyView(EmptyView())
         }
-        props.removeValue(forKey: "action")
-        view = Button(action: actionFunc, label:childrenFunc)
-    case "Text":
-        let content = props["children"]?.toString() ?? ""
-        props.removeValue(forKey: "content")
-        view = Text(content)
-    default:
-        print("unknown native element ", node)
-        view = EmptyView();
     }
-    
-    view = applyViewModifiers(to: view, from: props)
-    return AnyView(view)
 }
 
 public struct JSView: View {
     var renderFn: JSValue
-    // TODO: should we put in JSValues here directly? How do they equate?
-    var props: [String: Any]
-    @State var state: [String: Any]? = nil
+    // TODO: check if this works
+    // - Do JSValues equate correctly?
+    // - Can be a JSValue on top-level as well?
+    var props: [String: JSValue]
+    @State var state: [String: JSValue]? = nil
     
-    public init(_ renderFn: JSValue, props: [String: Any] = [:]) {
+    public init(_ renderFn: JSValue, props: [String: JSValue] = [:]) {
         self.renderFn = renderFn
         self.props = props
         if self._state.wrappedValue == nil {
             // JSView lifecycle is shorter than @State vars in SwiftUI. Only initialize to
             // initialState when nil. TODO: do this nicer.
-            let initialState = unwrapJSObject(renderFn.objectForKeyedSubscript("initialState")!)
-            self._state = State(initialValue: initialState)
+            if let initialState: [String: JSValue] = renderFn.objectForKeyedSubscript("initialState")?.bridge() {
+                self._state = State(initialValue: initialState)
+            } // else: non-stateful component?
         }
     }
     
@@ -85,7 +83,8 @@ public struct JSView: View {
     }
     
     func setState(state: JSValue) {
-        self.state = self.state!.merging(unwrapJSObject(state)) { (_, new) in new }
+        let mergedState: [String: JSValue] = state.bridge()!
+        self.state = self.state!.merging(mergedState) { (_, new) in new }
     }
 
     public var body: some View {
@@ -103,65 +102,58 @@ public struct JSView: View {
 }
 
 
-func applyViewModifiers(to view: some View, from props: [String: JSValue]) -> AnyView {
+func applyViewModifiers(to view: some View, from props: JSValue) -> AnyView {
     var modifiedView: any View = view
 
     // Always apply props in the same order, as it matters in SwiftUI how things are applioed
     // - It does mean we're not as versatile from javascript
     // - Consider: using multi-props argument, support ordering here?
 
-    if let paddingProp = props["padding"] {
-        if paddingProp.isNull {
-            modifiedView = modifiedView.padding()
-        } else if paddingProp.isNumber {
-            modifiedView = modifiedView.padding(toCGFloat(paddingProp) ?? 0)
-        } else if paddingProp.isObject {
-            let padding = unwrapJSObject(paddingProp)
-            modifiedView = modifiedView.padding(EdgeInsets(
-                top: padding["top"].flatMap { toCGFloat($0) } ?? 0,
-                leading: padding["leading"].flatMap { toCGFloat($0) } ?? 0,
-                bottom: padding["bottom"].flatMap { toCGFloat($0) } ?? 0,
-                trailing: padding["trailing"].flatMap { toCGFloat($0) } ?? 0
-            ))
-        }
+    if let padding = props["padding"], padding.isNull {
+        modifiedView = modifiedView.padding()
+    } else if let padding: Double = props["padding"]?.bridge() {
+        modifiedView = modifiedView.padding(padding.toCGFloat())
+    } else if let padding: [String: Double] = props["padding"]?.bridge() {
+        modifiedView = modifiedView.padding(EdgeInsets(
+            top: (padding["top"] ?? 0.0).toCGFloat(),
+            leading: (padding["top"] ?? 0.0).toCGFloat(),
+            bottom: (padding["top"] ?? 0.0).toCGFloat(),
+            trailing: (padding["top"] ?? 0.0).toCGFloat()
+        ))
     }
     
-    if let frameProp = props["frame"], frameProp.isObject {
-        let frame = unwrapJSObject(frameProp)
+    if let frame: [String: Double] = props["frame"]?.bridge() {
         modifiedView = modifiedView.frame(
-            width: frame["width"].flatMap { toCGFloat($0) },
-            height: frame["height"].flatMap { toCGFloat($0) },
+            width: frame["width"]?.toCGFloat(),
+            height: frame["height"]?.toCGFloat(),
             alignment: .center
         ).frame(
-            maxWidth: frame["maxWidth"].flatMap { toCGFloat($0) },
-            maxHeight: frame["maxHeight"].flatMap { toCGFloat($0) }
+            maxWidth: frame["maxWidth"]?.toCGFloat(),
+            maxHeight: frame["maxHeight"]?.toCGFloat()
         )
     }
 
-    if let transitionProp = props["transition"]?.toString() {
-        if let transition = makeTransition(named: transitionProp) {
-            modifiedView = modifiedView.transition(transition)
-        }
+    if let transitionName: String = props["transition"]?.bridge(),
+       let transition = makeTransition(named: transitionName) {
+        modifiedView = modifiedView.transition(transition)
     }
     
-    if let opacityProp = props["opacity"]?.toNumber() {
-        modifiedView = modifiedView.opacity(opacityProp.doubleValue)
+    if let opacity: Double = props["opacity"]?.bridge() {
+        modifiedView = modifiedView.opacity(opacity)
     }
 
-    if let foregroundColorProp = props["foregroundColor"]?.toString() {
-        if let color = makeColor(named: foregroundColorProp) {
-            modifiedView = modifiedView.foregroundColor(color)
-        }
+    if let foregroundColorName: String = props["foregroundColor"]?.bridge(),
+       let foregroundColor = makeColor(named: foregroundColorName) {
+        modifiedView = modifiedView.foregroundColor(foregroundColor)
     }
 
-    if let backgroundProp = props["background"]?.toString() {
-        if let color = makeColor(named: backgroundProp) {
-            modifiedView = modifiedView.background(color)
-        }
+    if let backgroundName: String = props["background"]?.bridge(),
+       let background = makeColor(named: backgroundName) {
+        modifiedView = modifiedView.background(background)
     }
     
-    if let fontProp = props["font"]?.toString() {
-        switch fontProp {
+    if let font: String = props["font"]?.bridge() {
+        switch font {
         case "largeTitle": modifiedView = modifiedView.font(.largeTitle)
         case "title": modifiedView = modifiedView.font(.title)
         case "headline": modifiedView = modifiedView.font(.headline)
@@ -170,8 +162,8 @@ func applyViewModifiers(to view: some View, from props: [String: JSValue]) -> An
         }
     }
     
-    if let fontWeightProp = props["fontWeight"]?.toString() {
-        switch fontWeightProp {
+    if let fontWeight: String = props["fontWeight"]?.bridge() {
+        switch fontWeight {
         case "semibold": modifiedView = modifiedView.fontWeight(.semibold)
         case "bold": modifiedView = modifiedView.fontWeight(.bold)
         case "regular": modifiedView = modifiedView.fontWeight(.regular)
@@ -179,21 +171,20 @@ func applyViewModifiers(to view: some View, from props: [String: JSValue]) -> An
         }
     }
 
-    if let cornerRadiusProp = props["cornerRadius"]?.toNumber() {
-        modifiedView = modifiedView.cornerRadius(CGFloat(cornerRadiusProp.doubleValue))
+    if let cornerRadius: Double = props["cornerRadius"]?.bridge() {
+        modifiedView = modifiedView.cornerRadius(CGFloat(cornerRadius))
     }
 
     return AnyView(modifiedView)
 }
 
-// Helper
-func toCGFloat(_ value: JSValue?) -> CGFloat? {
-    guard let number = value?.toNumber() else { return nil }
-    let doubleValue = number.doubleValue
-    if doubleValue == Double.infinity {
-        return .infinity
+extension Double {
+    func toCGFloat() -> CGFloat {
+        if self == Double.infinity {
+            return .infinity
+        }
+        return CGFloat(self)
     }
-    return CGFloat(doubleValue)
 }
 
 func makeTransition(named name: String) -> AnyTransition? {

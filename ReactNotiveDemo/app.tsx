@@ -1,4 +1,4 @@
-import { VStack, Text, Button, StatefulComponent, Component } from "react-notive";
+import { VStack, Text, Button, List, StatefulComponent, Component } from "react-notive";
 
 type CounterProps = {
     label: string;
@@ -20,6 +20,7 @@ const Counter: StatefulComponent<CounterProps, CounterState> = (props, state, se
             <Button action={increase}>
                 <Text padding={null} frame={{maxWidth: Infinity}} background="blue" foregroundColor="white" cornerRadius={10}>Tap me</Text>
             </Button>
+            <List data={["a", "b", "c"]} rowContent={(item) => <Text>{`ITEM ${item}`}</Text>} />
         </VStack>
     );
 }

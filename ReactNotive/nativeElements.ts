@@ -3,6 +3,7 @@ import type { Node } from "./index";
 export const VStack = "VStack";
 export const Text = "Text";
 export const Button = "Button";
+export const List = "List";
 
 type Color = string;
 
@@ -15,6 +16,12 @@ type LayoutProps = {
   background?: Color;
   foregroundColor?: Color;
   cornerRadius?: number;
+};
+
+type ListProps<ItemT> = {
+  data: ItemT[];
+  idFunction?: (item: ItemT) => string;
+  rowContent: (item: ItemT) => Node;
 };
 
 export type NativeElements = {
@@ -31,4 +38,6 @@ export type NativeElements = {
     fontWeight?: "bold" | "semibold" | "medium" | "regular" | "light" | "thin";
     children: string; // Explicitly allow/force single string
   } & LayoutProps;
+  // TODO: The IntrinsicElements API does not allow using a generic for the list item type...
+  [List]: ListProps<any>;
 };

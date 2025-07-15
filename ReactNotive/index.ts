@@ -1,6 +1,6 @@
 import type { NativeElements } from "./nativeElements";
 
-export { VStack, Text, Button } from "./nativeElements";
+export { VStack, Text, Button, List } from "./nativeElements";
 
 // Consider: maintain as index.d.ts directly for better composite package support without build step
 

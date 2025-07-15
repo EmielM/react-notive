@@ -2,6 +2,7 @@
 var VStack = "VStack";
 var Text = "Text";
 var Button = "Button";
+var List = "List";
 
 // ../ReactNotive/index.ts
 function jsx(type, props) {
@@ -36,6 +37,13 @@ var Counter = (props, state, setState) => {
           foregroundColor: "white",
           cornerRadius: 10,
           children: "Tap me"
+        }, undefined, false, undefined, this)
+      }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsx(List, {
+        data: ["a", "b", "c"],
+        idFunction: (item) => item,
+        rowContent: (item) => /* @__PURE__ */ jsx(Text, {
+          children: `ITEM ${item}`
         }, undefined, false, undefined, this)
       }, undefined, false, undefined, this)
     ]

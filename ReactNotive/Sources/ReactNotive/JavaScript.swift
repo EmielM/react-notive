@@ -62,42 +62,108 @@ public func loadJSCode(named fileName: String) -> String {
     return try! String(contentsOf: url)
 }
 
-func unwrapJSArray(_ jsArray: JSValue) -> [JSValue] {
-    let length = jsArray.forProperty("length")!.toInt32()
-
-    return (0..<length).map { index in
-        jsArray.atIndex(Int(index))
-    }
-}
-
-func unwrapJSObject(_ jsObject: JSValue) -> [String: JSValue] {
-    guard jsObject.isObject,
-          let context = jsObject.context,
-          let keysValue = context.objectForKeyedSubscript("Object")
-                               .objectForKeyedSubscript("keys")?
-                               .call(withArguments: [jsObject]),
-          let keys = keysValue.toArray() as? [String] else {
-        return [:]
-    }
-
-    return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
-        jsObject.forProperty(key).map { (key, $0) }
-    })
-}
-
 extension JSValue {
+    // Missing in JavaScriptCore
     var isFunction: Bool {
         guard self.isObject else {
             return false
         }
+        return self.isInstance(of: self.context.objectForKeyedSubscript("Function"))
+    }
+    
+    // Allow subscript access in swift: props["label"]
+    subscript(key: String) -> JSValue? {
+        get { self.objectForKeyedSubscript(key) }
+    }
+    
+    // Bunch of bridge() overloads to allow eazy unwrapping to a shape we want
+
+    func bridge() -> String? {
+        guard self.isString else {
+            return nil
+        }
+        return self.toString()
+    }
+    
+    func bridge() -> Int? {
+        guard self.isNumber else {
+            return nil
+        }
+        return Int(self.toInt32())
+    }
+    
+    func bridge() -> Double? {
+        guard self.isNumber else {
+            return nil
+        }
+        return self.toDouble()
+    }
+    
+    func bridge() -> [JSValue]? {
+        guard self.isArray else {
+            return nil
+        }
+        let length = self.forProperty("length")!.toInt32()
+        return (0..<length).map { index in
+            self.atIndex(Int(index))
+        }
+    }
+    
+    func bridge() -> [String: JSValue]? {
+        guard self.isObject, !self.isNull else {
+            return nil
+        }
         
-        var isFunction = self.context.objectForKeyedSubscript("_isFunction")!
-        if isFunction.isUndefined {
-            print("Injecting _isFunction!");
-            self.context.evaluateScript("function _isFunction(value) { return typeof value === 'function'; }");
-            isFunction = self.context.objectForKeyedSubscript("_isFunction")
+        let context = self.context!
+        guard let keysValue = context.objectForKeyedSubscript("Object")
+                                     .objectForKeyedSubscript("keys")?
+                                     .call(withArguments: [self]),
+              let keys = keysValue.toArray() as? [String]
+        else {
+            return nil
         }
 
-        return isFunction.call(withArguments:[self])!.toBool()
+        return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
+            self.forProperty(key).map { (key, $0) }
+        })
     }
+    
+    func bridge() -> [String: Double]? {
+        guard let object: [String: JSValue] = self.bridge()
+        else {
+            return nil
+        }
+
+        // Non-number values will be removed
+        return object.compactMapValues { $0.isNumber ? $0.toDouble() : nil }
+    }
+    
+    func bridge() -> (() -> Void)? {
+        guard self.isFunction else {
+            return nil
+        }
+        return {
+            self.call(withArguments: [])
+        }
+    }
+
+    func bridge() -> ((JSValue) -> JSValue)? {
+        guard self.isFunction else {
+            return nil
+        }
+        return { arg in
+            self.call(withArguments: [arg])
+        }
+    }
+    
+    func bridge() -> ((JSValue) -> String)? {
+        guard self.isFunction else {
+            return nil
+        }
+        return { arg in
+            // TODO: cannot check return type at time of bridge() call
+            self.call(withArguments: [arg]).toString()!
+        }
+    }
+
 }

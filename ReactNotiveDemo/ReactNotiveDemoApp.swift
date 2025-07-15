@@ -18,7 +18,7 @@ struct ReactNotiveDemoApp: App {
     var body: some Scene {
         WindowGroup {
             JSRoot()
-            //DemoView()
+//            DemoView()
         }
     }
 }
