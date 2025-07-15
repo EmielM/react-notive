@@ -41,7 +41,6 @@ var Counter = (props, state, setState) => {
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsx(List, {
         data: ["a", "b", "c"],
-        idFunction: (item) => item,
         rowContent: (item) => /* @__PURE__ */ jsx(Text, {
           children: `ITEM ${item}`
         }, undefined, false, undefined, this)
@@ -55,4 +54,10 @@ var App = () => {
     label: "Hello World"
   }, undefined, false, undefined, this);
 };
+async function fetchData() {
+  const response = await fetch("https://jsonplaceholder.typicode.com/todos/1");
+  const result = await response.json();
+  console.log("got data", result);
+}
 registerApp(App);
+fetchData();
