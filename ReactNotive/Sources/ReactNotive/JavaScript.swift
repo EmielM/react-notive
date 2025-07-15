@@ -22,7 +22,6 @@ public func setupJSContext() -> JSContext {
     context.setObject(setTimeoutFunction, forKeyedSubscript: "setTimeout" as NSString)
     
     context.setObject(fetchFunction, forKeyedSubscript: "fetch" as NSString)
-
     
     let registerApp: @convention(block) (JSValue) -> Void = { appComponent in
         // TODO: use the appComponent passed here (where to save?), instead of getting global.App
@@ -31,7 +30,6 @@ public func setupJSContext() -> JSContext {
     
     context.setObject(registerApp, forKeyedSubscript: "registerApp" as NSString)
 
-    
     return context
 }
 

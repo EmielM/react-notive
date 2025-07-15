@@ -73,7 +73,10 @@ public struct JSView: View {
             // initialState when nil. TODO: do this nicer.
             if let initialState: [String: JSValue] = renderFn.objectForKeyedSubscript("initialState")?.bridge() {
                 self._state = State(initialValue: initialState)
-            } // else: non-stateful component?
+            } else {
+                // non-stateful component, but fill it with something so this path is not hit anymore
+                self._state = State(initialValue: [:])
+            }
         }
     }
     
@@ -180,9 +183,7 @@ func applyViewModifiers(to view: some View, from props: JSValue) -> AnyView {
 
 extension Double {
     func toCGFloat() -> CGFloat {
-        if self == Double.infinity {
-            return .infinity
-        }
+        // (Negative) infinity should be preserved by this cast
         return CGFloat(self)
     }
 }
