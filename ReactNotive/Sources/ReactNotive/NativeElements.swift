@@ -16,13 +16,15 @@ enum ViewRegistry {
 
 enum ListFactory: ViewFactory {
     static func from(props: JSValue) -> AnyView? {
+
         guard let data: [JSValue] = props["data"]?.bridge(),
-              let rowContent: (JSValue) -> JSValue = props["rowContent"]?.bridge(),
-              let idFunction: ((JSValue) -> String)? = props["idFunction"]?.bridge(),
-              let idKey: String? = props["id"]?.bridge()
+              let rowContent: (JSValue) -> JSValue = props["rowContent"]?.bridge()
         else {
             return nil
         }
+        
+        let idFunction = props["idFunction"]?.bridge() as ((JSValue) -> String)?
+        let idKey = props["id"]?.bridge() as String?
 
         struct Row: Identifiable {
             let item: JSValue

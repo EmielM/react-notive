@@ -22,6 +22,7 @@ public func setupJSContext() -> JSContext {
     context.setObject(setTimeoutFunction, forKeyedSubscript: "setTimeout" as NSString)
     
     context.setObject(fetchFunction, forKeyedSubscript: "fetch" as NSString)
+    context.setObject(controllerConstructor, forKeyedSubscript: "AbortController" as NSString)
     
     let registerApp: @convention(block) (JSValue) -> Void = { appComponent in
         // TODO: use the appComponent passed here (where to save?), instead of getting global.App
@@ -47,13 +48,72 @@ extension JSValue {
         return self.isInstance(of: self.context.objectForKeyedSubscript("Function"))
     }
     
-    // Allow subscript access in swift: props["label"]
+    /// Allow subscript access in swift: props["label"]
+    /// - "undefined" will map to nil, allowing smoother chain operation
     subscript(key: String) -> JSValue? {
-        get { self.objectForKeyedSubscript(key) }
+        get {
+            guard let value = self.objectForKeyedSubscript(key), !value.isUndefined
+            else {
+                return nil
+            }
+            return value
+        }
     }
+    
+    /// Call a JS function that returns a Promise, and await its resolution in Swift.
+    func callAndAwait(withArguments arguments: [Any] = []) async throws -> JSValue {
+        let context = self.context!
+
+        return try await withCheckedThrowingContinuation { continuation in
+            // Create resolve and reject callbacks
+            let resolve: @convention(block) (JSValue) -> Void = { value in
+                continuation.resume(returning: value)
+            }
+
+            let reject: @convention(block) (JSValue) -> Void = { error in
+                let swiftError = NSError(
+                    domain: "js",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: error.toString() ?? "JavaScript error"]
+                )
+                continuation.resume(throwing: swiftError)
+            }
+
+            // Convert blocks to JSValues
+            let resolveFn = JSValue(object: resolve, in: context)!
+            let rejectFn = JSValue(object: reject, in: context)!
+
+            // Call the JS function, get a Promise
+            guard let promise = self.call(withArguments: arguments) else {
+                continuation.resume(throwing: NSError(domain: "js", code: 0, userInfo: [NSLocalizedDescriptionKey: "JS function call failed"]))
+                return
+            }
+            
+            // Attach .then and .catch directly on the returned Promise
+            promise.invokeMethod("then", withArguments: [resolveFn])
+            promise.invokeMethod("catch", withArguments: [rejectFn])
+            
+            // Register a cancellation handler
+            Task {
+                if Task.isCancelled {
+                    print("callAndAwait CANCEL!!")
+                    // Optional: reject the JS Promise manually if you expose a cancellation hook
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        }
+    }
+
     
     // Bunch of bridge() overloads to allow eazy unwrapping to a shape we want
 
+    func bridge() -> Bool? {
+        guard self.isBoolean else {
+            return nil
+        }
+        return self.toBool()
+    }
+    
     func bridge() -> String? {
         guard self.isString else {
             return nil
@@ -180,10 +240,11 @@ let consoleLogFunction: @convention(block) (JSValue, JSValue, JSValue) -> Void =
         } else if jsVal.isNumber {
             return "\(jsVal.toNumber()!)"
         } else if jsVal.isArray || jsVal.isObject {
-            return jsVal.toObject().debugDescription
-        } else {
-            return jsVal.toString()
+            if let jsValObject = jsVal.toObject() as? NSObject {
+                return jsValObject.debugDescription
+            }
         }
+        return jsVal.toString()
     }
 
     print("JS: ", descriptions.joined(separator: " "))
@@ -200,7 +261,7 @@ let fetchFunction: @convention(block) (JSValue, JSValue?) -> JSValue = { input, 
     var request = URLRequest(url: url)
 
     if let initDict: [String: JSValue] = initOptions?.bridge() {
-        if let method = initDict["method"]?.toString() {
+        if let method: String = initDict["method"]?.bridge() {
             request.httpMethod = method
         }
         if let headers: [String: JSValue] = initDict["headers"]?.bridge()  {
@@ -208,7 +269,7 @@ let fetchFunction: @convention(block) (JSValue, JSValue?) -> JSValue = { input, 
                 request.setValue(value.toString(), forHTTPHeaderField: key)
             }
         }
-        if let body = initDict["body"]?.toString() {
+        if let body: String = initDict["body"]?.bridge() {
             request.httpBody = body.data(using: .utf8)
         }
     }
@@ -247,4 +308,49 @@ let fetchFunction: @convention(block) (JSValue, JSValue?) -> JSValue = { input, 
         }
         task.resume()
     }
+}
+
+
+class JSAbortSignal: NSObject, JSExport {
+    var aborted = false
+    private var listeners: [JSValue] = []
+
+    func addEventListener(_ type: String, _ listener: JSValue) {
+        guard type == "abort" else { return }
+        listeners.append(listener)
+    }
+
+    func dispatchAbortEvent() {
+        guard !aborted else { return }
+        print("setting aborted to true!!")
+        aborted = true
+        for listener in listeners {
+            listener.call(withArguments: [])
+        }
+    }
+    
+    @objc func throwIfAborted() {
+        if aborted {
+            let error = JSValue(newErrorFromMessage: "Aborted", in: JSContext.current())
+            error?.setValue("AbortError", forProperty: "name")
+            JSContext.current()?.exception = error
+        }
+    }
+}
+
+@objc protocol JSAbortControllerExport: JSExport {
+    var signal: JSAbortSignal { get }
+    func abort()
+}
+
+class JSAbortController: NSObject, JSAbortControllerExport {
+    let signal = JSAbortSignal()
+
+    func abort() {
+        signal.dispatchAbortEvent()
+    }
+}
+
+let controllerConstructor: @convention(block) () -> JSAbortController = {
+    JSAbortController()
 }

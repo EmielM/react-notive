@@ -4,24 +4,30 @@ import JavaScriptCore
 func renderNode(_ node: JSValue) -> AnyView {
     guard node.isObject, !node.isNull
     else {
-        fatalError("renderNode not an object")
+        print("renderNode not an object: ", node)
+        return AnyView(EmptyView())
     }
     
-    let type = node.objectForKeyedSubscript("type")!
-    let props = node.objectForKeyedSubscript("props")!
+    guard let type = node.objectForKeyedSubscript("type"),
+          let props = node.objectForKeyedSubscript("props")
+    else {
+        print("type or props missing: ", node)
+        return AnyView(EmptyView())
+    }
     if type.isFunction {
         // Another component
-        guard let props0: [String: JSValue] = props.bridge()
+        guard let propsDict: [String: JSValue] = props.bridge()
         else {
-            fatalError("Could not unwrap props")
+            print("could not unwrap props: ", props)
+            return AnyView(EmptyView())
         }
-        return AnyView(JSView(type, props: props0))
+        return AnyView(JSView(type, props: propsDict))
     }
     
     guard let typeString: String = type.bridge(),
           let factory = ViewRegistry.factories[typeString]
     else {
-        print("unknown native element ", type)
+        print("unknown native element: ", type)
         return AnyView(EmptyView())
     }
     
@@ -73,34 +79,94 @@ public struct JSView: View {
             // initialState when nil. TODO: do this nicer.
             if let initialState: [String: JSValue] = renderFn.objectForKeyedSubscript("initialState")?.bridge() {
                 self._state = State(initialValue: initialState)
-            } else {
-                // non-stateful component, but fill it with something so this path is not hit anymore
-                self._state = State(initialValue: [:])
             }
         }
     }
     
     var componentName: String {
-        // TODO: fix
-        renderFn.objectForKeyedSubscript("name").toString()
+        renderFn["name"]?.bridge() ?? "<unknown>"
     }
     
-    func setState(state: JSValue) {
-        let mergedState: [String: JSValue] = state.bridge()!
-        self.state = self.state!.merging(mergedState) { (_, new) in new }
+    func setState(_ newState: [String: JSValue], abortSignal: JSAbortSignal? = nil) {
+        if abortSignal?.aborted == true {
+            print(self.componentName, ".setState: stale value, task was aborted")
+            return
+        }
+        self.state = self.state!.merging(newState) { (_, new) in new }
     }
 
     public var body: some View {
         let context = renderFn.context!;
+        
         let jsProps = JSValue(object: props, in: context)!
-        let jsState = JSValue(object: state, in: context)!
-        let setStateCallback: @convention(block) (JSValue) -> Void = { newState in
-            self.setState(state: newState)
+        
+        let jsLifecycle = JSValue(newObjectIn: context)!
+        var viewModifiers: [(AnyView) -> AnyView] = [];
+        let onAppearFunction: @convention(block) (JSValue) -> Void = { onAppear in
+            viewModifiers.append({ view in AnyView(view.onAppear { onAppear.call(withArguments:[]) }) });
         }
-        let jsSetState = JSValue(object: setStateCallback, in: context)!
+        jsLifecycle.setObject(onAppearFunction, forKeyedSubscript: "onAppear" as NSString);
 
-        let node = renderFn.call(withArguments: [jsProps, jsState, jsSetState])!;
-        return renderNode(node)
+        let onDisappearFunction: @convention(block) (JSValue) -> Void = { onDisappear in
+            viewModifiers.append({ view in AnyView(view.onDisappear { onDisappear.call(withArguments:[]) }) });
+        }
+        jsLifecycle.setObject(onDisappearFunction, forKeyedSubscript: "onDisappear" as NSString);
+
+        let taskFunction: @convention(block) (JSValue, JSValue) -> Void = { taskCallback, deps in
+            guard let depsArray: [JSValue] = deps.bridge()
+            else {
+                print("invalid task() invocation: ", deps)
+                return
+            }
+            print("task registered ", task, depsArray)
+            if #available(iOS 17, *) {
+                viewModifiers.append({ view in AnyView(view.task(id:depsArray) { @MainActor () async in
+                    let uuid = UUID()
+                    print(uuid, ": run")
+                    let abortController = JSAbortController()
+                    let signal = abortController.signal
+
+                    do {
+                        let result = try await withTaskCancellationHandler {
+                            try await taskCallback.callAndAwait(withArguments: [signal])
+                        } onCancel: {
+                            print(uuid, ": invoke abort")
+                            _ = abortController.abort()
+                        }
+                        print(uuid, ": done")
+                    } catch {
+                        print(uuid, ": js error ", error)
+                    }
+                }) });
+            }
+        }
+        jsLifecycle.setObject(taskFunction, forKeyedSubscript: "task" as NSString);
+
+        let node: JSValue
+        if state != nil {
+            // Stateful component
+            let jsState = JSValue(object: state, in: context)!
+            let setStateFunction: @convention(block) (JSValue, JSValue) -> Void = {
+                guard let newState: [String: JSValue] = $0.bridge()
+                else {
+                    print("invalid newState: ", $0)
+                    return
+                }
+                let abortSignal = $1.toObject() as? JSAbortSignal
+                self.setState(newState, abortSignal:abortSignal)
+            }
+            let jsSetState = JSValue(object: setStateFunction, in: context)!
+            node = renderFn.call(withArguments: [jsProps, jsState, jsSetState, jsLifecycle])!;
+        } else {
+            // Stateless component
+            node = renderFn.call(withArguments: [jsProps, jsLifecycle])!;
+        }
+
+        var view = renderNode(node)
+        for viewModifier in viewModifiers {
+            view = viewModifier(view)
+        }
+        return view
     }
 }
 
@@ -108,7 +174,7 @@ public struct JSView: View {
 func applyViewModifiers(to view: some View, from props: JSValue) -> AnyView {
     var modifiedView: any View = view
 
-    // Always apply props in the same order, as it matters in SwiftUI how things are applioed
+    // Always apply props in the same order, as it matters in SwiftUI how things are applied
     // - It does mean we're not as versatile from javascript
     // - Consider: using multi-props argument, support ordering here?
 

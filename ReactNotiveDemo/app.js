@@ -9,10 +9,25 @@ function jsx(type, props) {
   return { type, props };
 }
 // app.tsx
-var Counter = (props, state, setState) => {
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+var Counter = (props, state, setState, { task, onAppear }) => {
   const increase = () => {
     setState({ count: state.count + 1 });
   };
+  task(async (signal) => {
+    console.log("TASK!", signal, typeof AbortController);
+    const response = await fetch(`https://jsonplaceholder.typicode.com/todos/${state.count}`, { signal });
+    const result = await response.json();
+    console.log("pre-sleep", state.count);
+    await sleep(3000);
+    console.log("post-sleep", state.count);
+    setState({ result }, signal);
+  }, [state.count]);
+  onAppear(() => {
+    console.log("onAppear");
+  });
   return /* @__PURE__ */ jsx(VStack, {
     spacing: 10,
     padding: null,
@@ -24,9 +39,8 @@ var Counter = (props, state, setState) => {
         fontWeight: "semibold",
         children: props.label
       }, undefined, false, undefined, this),
-      /* @__PURE__ */ jsx(Text, {
-        foregroundColor: "gray",
-        children: `You tapped ${state.count} times`
+      /* @__PURE__ */ jsx(Count, {
+        count: state.count
       }, undefined, false, undefined, this),
       /* @__PURE__ */ jsx(Button, {
         action: increase,
@@ -39,6 +53,9 @@ var Counter = (props, state, setState) => {
           children: "Tap me"
         }, undefined, false, undefined, this)
       }, undefined, false, undefined, this),
+      /* @__PURE__ */ jsx(Text, {
+        children: JSON.stringify(state.result)
+      }, undefined, false, undefined, this),
       /* @__PURE__ */ jsx(List, {
         data: ["a", "b", "c"],
         rowContent: (item) => /* @__PURE__ */ jsx(Text, {
@@ -48,16 +65,23 @@ var Counter = (props, state, setState) => {
     ]
   }, undefined, true, undefined, this);
 };
-Counter.initialState = { count: 1 };
+Counter.initialState = { count: 1, result: null };
+var Count = (props, { onAppear, onDisappear }) => {
+  console.log("Count render");
+  onAppear(() => {
+    console.log("Count onAppear");
+  });
+  onDisappear(() => {
+    console.log("Count onDisappear");
+  });
+  return /* @__PURE__ */ jsx(Text, {
+    foregroundColor: "gray",
+    children: `YouX tapped ${props.count} times`
+  }, undefined, false, undefined, this);
+};
 var App = () => {
   return /* @__PURE__ */ jsx(Counter, {
     label: "Hello World"
   }, undefined, false, undefined, this);
 };
-async function fetchData() {
-  const response = await fetch("https://jsonplaceholder.typicode.com/todos/1");
-  const result = await response.json();
-  console.log("got data", result);
-}
 registerApp(App);
-fetchData();
